@@ -1,88 +1,80 @@
-from telebot import TeleBot, types
 import json
 import random
+import re
+from telebot import TeleBot, types
 
-bot = TeleBot(token='YOUR_API_TOKEN', parse_mode='html') 
+bot = TeleBot("YOUR_API_TOKEN")
 
-# создаем кнопки
+
+
 def create_markup():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    item1 = types.KeyboardButton("🌐 Визитка")
-    item2 = types.KeyboardButton("📨 Написать автору")
-    item3 = types.KeyboardButton("🚀 Код проекта")
-    item4 = types.KeyboardButton("🎲 Генерировать тестовый JSON")
-    markup.add(item1, item2, item3, item4)
+    markup.add(
+        types.KeyboardButton("🌐 Визитка"),
+        types.KeyboardButton("📨 Написать автору"),
+        types.KeyboardButton("🚀 Код проекта"),
+        types.KeyboardButton("🎭 Генерировать тестовый JSON")
+    )
     return markup
 
-# ответ на /start
 @bot.message_handler(commands=['start'])
 def start_command_handler(message: types.Message):
-    markup = create_markup()
     bot.send_message(
         chat_id=message.chat.id,
         text='Привет! Я помогу проверить твой JSON и оформить его в удобный для чтения вид. Отправь JSON-строку, и я разберу её для тебя. Также ты можешь сгенерировать JSON:',
-        reply_markup=markup
-    )
-
-# обработчик JSON
-@bot.message_handler(func=lambda message: is_json(message.text))
-def json_handler(message: types.Message):
-    markup = create_markup() 
-    payload = json.loads(message.text)
-    formatted_text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
-    bot.send_message(
-        chat_id=message.chat.id,
-        text=f'JSON:\n<code>{formatted_text}</code>',
-        reply_markup=markup
+        reply_markup=create_markup()
     )
 
 @bot.message_handler(content_types=['text'])
 def message_handler(message: types.Message):
+    text = message.text.strip()
     markup = create_markup()
-    if message.chat.type == 'private':
-        if message.text == '🌐 Визитка':
-            bot.send_message(message.chat.id, 'На стадии разработки, скоро будет готово!🛠️🔥', reply_markup=markup)
-        elif message.text == '🚀 Код проекта':
-            bot.send_message(message.chat.id, 'https://github.com/BogdanHoriainov/pythone_json_beautifier', reply_markup=markup)
-        elif message.text == '📨 Написать автору':
-            bot.send_message(message.chat.id, 'https://t.me/chifuyu_cf', reply_markup=markup)
-        elif message.text == '🎲 Генерировать тестовый JSON': 
-            test_json = generate_random_json() 
-            bot.send_message(message.chat.id, f'JSON:\n<code>{test_json}</code>', reply_markup=markup)
+    
+    if text == '🌐 Визитка':
+        bot.send_message(message.chat.id, 'На стадии разработки, скоро будет готово!🛠🔥', reply_markup=markup)
+    elif text == '🚀 Код проекта':
+        bot.send_message(message.chat.id, 'https://github.com/BogdanHoriainov/pythone_json_beautifier', reply_markup=markup)
+    elif text == '📨 Написать автору':
+        bot.send_message(message.chat.id, 'https://t.me/chifuyu_cf', reply_markup=markup)
+    elif text == '🎭 Генерировать тестовый JSON':
+        bot.send_message(message.chat.id, f'JSON:\n<code>{generate_random_json()}</code>', reply_markup=markup, parse_mode='HTML')
+    else:
+        # исправляем JSON
+        fixed_json = fix_json(text)
+        if fixed_json:
+            bot.send_message(message.chat.id, f'Исправленный JSON:\n<code>{fixed_json}</code>', reply_markup=markup, parse_mode='HTML')
         else:
-            # пытаемся распарсить JSON    
+            # пытаемся распарсить
             try:
-                payload = json.loads(message.text)
-                formatted_text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
-                bot.send_message(
-                    chat_id=message.chat.id,
-                    text=f'JSON:\n<code>{formatted_text}</code>',
-                    reply_markup=markup
-                )
+                payload = json.loads(text)
+                formatted_json = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
+                bot.send_message(message.chat.id, f'JSON:\n<code>{formatted_json}</code>', reply_markup=markup, parse_mode='HTML')
             except json.JSONDecodeError as ex:
                 bot.send_message(
                     chat_id=message.chat.id,
                     text=f'При обработке произошла ошибка:\n<code>{str(ex)}</code>',
-                    reply_markup=markup
+                    parse_mode='HTML'
                 )
 
-# Генерируем случайный JSON
+def fix_json(text):
+    try:
+        text = text.strip()
+        if not text.startswith("{"):
+            text = "{" + text
+        if not text.endswith("}"):
+            text += "}"
+        payload = json.loads(text)
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+    except json.JSONDecodeError:
+        return None
+
 def generate_random_json():
-    random_data = {
+    return json.dumps({
         "name": random.choice(["Alice", "정민", "Charlie", "Cat"]),
         "age": random.randint(18, 40),
         "city": random.choice(["New York", "London", "Seoul", "Tokyo"]),
         "email": f"{random.choice(['alice', 'jeongmin', 'charlie', 'cat'])}@example.com"
-    }
-    return json.dumps(random_data, indent=2, ensure_ascii=False)
-
-# Проверяем, является ли строка корректным JSON
-def is_json(text):
-    try:
-        json.loads(text)
-        return True
-    except json.JSONDecodeError:
-        return False
+    }, indent=2, ensure_ascii=False)
 
 def main():
     bot.infinity_polling()
